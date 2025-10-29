@@ -244,6 +244,26 @@ vender_productos() {
   rm -f "$carrito_tmp"
 }
 
+# === Parte 4: Filtro de productos por tipo ===
+filtrar_productos() {
+  if [ ! -s productos.txt ]; then
+    echo "No hay productos cargados."
+    return 1
+  fi
+
+  read -p "Ingrese el Tipo a filtrar (ENTER para ver todos): " tipo
+  tipo="$(trim "$tipo")"
+
+  echo "Resultados:"
+  if [ -z "$tipo" ]; then
+    # Sin filtro: mostrar todos los productos en el formato almacenado
+    cat productos.txt
+  else
+    # Con filtro (insensible a mayúsculas/minúsculas, por coincidencia parcial)
+    awk -F' - ' -v t="$tipo" 'BEGIN{IGNORECASE=1} $2 ~ t {print}' productos.txt
+  fi
+}
+
 
 
 
@@ -298,7 +318,7 @@ select opt in "${opciones[@]}"; do
 
         # === SUBMENÚ DE USUARIO LOGUEADO ===
         while true; do
-          echo -e "2.1) Cambiar contraseña\n2.2) Logout\n2.3) Ingresar producto\n2.4) Vender producto "
+          echo -e "2.1) Cambiar contraseña\n2.2) Logout\n2.3) Ingresar producto\n2.4) Vender producto\n2.5) Filtrar productos por tipo "
           read -p "Elija una opción (1-4): " subopt
           case "$subopt" in
             1)
@@ -313,6 +333,8 @@ select opt in "${opciones[@]}"; do
               ;;
               4) vender_productos 
               ;;
+              5) filtrar_productos
+               ;;
             *)
               echo "Opción inválida."
               ;;
