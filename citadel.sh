@@ -99,7 +99,7 @@ change_password() {
 
   echo "Contraseña cambiada correctamente."
 }
-# === Parte 2: Ingresar producto (AGREGADO) ===
+# === Parte 2: Ingresar producto (con validación de Tipo) ===
 ingresar_producto() {
   local tipo modelo desc cantidad precio codigo
 
@@ -145,6 +145,22 @@ ingresar_producto() {
   echo "$linea"
   echo "$linea" >> productos.txt
   echo "Producto registrado en productos.txt"
+}
+# === Listado para vender (numero – tipo – modelo – precio) ===
+mostrar_productos() {
+  if [ ! -s productos.txt ]; then
+    echo "No hay productos cargados."
+    return 1
+  fi
+  echo "Lista de productos:"
+  # n) Tipo - Modelo - $ Precio
+  awk -F' - ' '
+    {
+      price=$6
+      gsub(/^\$[[:space:]]*/,"",price)   # quita "$ " del inicio
+      printf "%d) %s - %s - $ %s\n", NR, $2, $3, price
+    }
+  ' productos.txt
 }
 
 # Helpers para leer/modificar una línea de productos.txt por número
