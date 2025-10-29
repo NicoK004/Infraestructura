@@ -113,6 +113,136 @@ ingresar_producto() {
   echo "$linea" >> productos.txt
   echo "Producto registrado en productos.txt"
 }
+# === Listado para vender (numero – tipo – modelo – precio) ===
+mostrar_productos() {
+  if [ ! -s productos.txt ]; then
+    echo "No hay productos cargados."
+    return 1
+  fi
+  echo "Lista de productos:"
+  # n) Tipo - Modelo - $ Precio
+  awk -F' - ' '
+    {
+      price=$6
+      gsub(/^\$[[:space:]]*/,"",price)   # quita "$ " del inicio
+      printf "%d) %s - %s - $ %s\n", NR, $2, $3, price
+    }
+  ' productos.txt
+}
+
+# Helpers para leer/modificar una línea de productos.txt por número
+_get_fields_by_num() {
+  # Salida: Tipo|Modelo|Stock|Precio
+  local n="$1"
+  awk -v n="$n" -F' - ' '
+    NR==n{
+      price=$6; gsub(/^\$[[:space:]]*/,"",price);
+      stock=$5; gsub(/^[[:space:]]+|[[:space:]]+$/,"",stock);
+      tipo=$2;  gsub(/^[[:space:]]+|[[:space:]]+$/,"",tipo);
+      modelo=$3;gsub(/^[[:space:]]+|[[:space:]]+$/,"",modelo);
+      printf "%s|%s|%s|%s\n", tipo, modelo, stock, price
+    }
+  ' productos.txt
+}
+
+_update_stock_by_num() {
+  # Reemplaza el campo Cantidad (5to) por el nuevo stock para la línea NR==n
+  local n="$1" newstock="$2"
+  awk -v n="$n" -v ns="$newstock" -F' - ' 'BEGIN{OFS=" - "}
+    {
+      if (NR==n){ $5=ns }
+      print $1,$2,$3,$4,$5,$6
+    }
+  ' productos.txt > productos.bak && mv productos.bak productos.txt
+}
+
+# === Parte 3: Vender productos (múltiples ítems a la vez) ===
+vender_productos() {
+  mostrar_productos || return 1
+  echo
+  echo "Ingrese compras en formato: <numero> <cantidad>"
+  echo "Una por línea. Enter vacío para finalizar (ej.: '1 3' compra 3 unidades del producto 1)."
+
+  local carrito_tmp="$(mktemp)"
+  while true; do
+    read -r linea
+    [ -z "$linea" ] && break
+    # normaliza separadores
+    set -- $linea
+    local num="$1" qty="$2"
+
+    # validaciones básicas
+    if ! [[ "$num" =~ ^[0-9]+$ ]] || ! [[ "$qty" =~ ^[0-9]+$ ]] || [ "$qty" -le 0 ]; then
+      echo "Entrada inválida. Use: <numero> <cantidad> (ambos enteros > 0)."
+      continue
+    fi
+
+    # obtener datos del producto
+    local fields; fields="$(_get_fields_by_num "$num")"
+    if [ -z "$fields" ]; then
+      echo "No existe el producto número $num."
+      continue
+    fi
+
+    # stock/price
+    IFS='|' read -r tipo modelo stock precio <<< "$fields"
+
+    if ! [[ "$stock" =~ ^[0-9]+$ ]]; then
+      echo "Stock inválido en el producto $num."
+      continue
+    fi
+    if [ "$qty" -gt "$stock" ]; then
+      echo "La cantidad solicitada ($qty) supera el stock disponible ($stock) para '$tipo - $modelo'."
+      continue
+    fi
+
+    # Si ya estaba en el carrito, acumulamos
+    if grep -q "^${num}|" "$carrito_tmp"; then
+      local prev; prev=$(grep "^${num}|" "$carrito_tmp" | cut -d'|' -f2)
+      local nuevo=$((prev + qty))
+      if [ "$nuevo" -gt "$stock" ]; then
+        echo "Acumulado supera stock ($nuevo > $stock) para '$tipo - $modelo'."
+        continue
+      fi
+      # reemplaza línea
+      sed -i "s/^${num}|${prev}/${num}|${nuevo}/" "$carrito_tmp"
+    else
+      echo "${num}|${qty}" >> "$carrito_tmp"
+    fi
+
+    echo "Agregado: $tipo - $modelo x $qty"
+  done
+
+  # si no se agregó nada
+  if [ ! -s "$carrito_tmp" ]; then
+    echo "No se agregaron productos a la compra."
+    rm -f "$carrito_tmp"
+    return 0
+  fi
+
+  echo
+  echo "=== Resumen de la compra ==="
+  local total_general=0
+
+  # Recorremos carrito, imprimimos resumen y actualizamos stock
+  while IFS='|' read -r num qty; do
+    local fields; fields="$(_get_fields_by_num "$num")"
+    IFS='|' read -r tipo modelo stock precio <<< "$fields"
+
+    local total_item=$(( qty * precio ))
+    total_general=$(( total_general + total_item ))
+
+    # Resumen por ítem: tipo – modelo – cantidad – $ total
+    echo "$tipo – $modelo – $qty – \$ $total_item"
+
+    # Descontar stock
+    local newstock=$(( stock - qty ))
+    _update_stock_by_num "$num" "$newstock"
+  done < "$carrito_tmp"
+
+  echo "Total a pagar: \$ $total_general"
+  rm -f "$carrito_tmp"
+}
 
 
 
@@ -168,8 +298,8 @@ select opt in "${opciones[@]}"; do
 
         # === SUBMENÚ DE USUARIO LOGUEADO ===
         while true; do
-          echo -e "2.1) Cambiar contraseña\n2.2) Logout\n2.3 Ingresar producto "
-          read -p "Elija una opción (1-3): " subopt
+          echo -e "2.1) Cambiar contraseña\n2.2) Logout\n2.3 Ingresar producto\n2.4) Vender producto "
+          read -p "Elija una opción (1-4): " subopt
           case "$subopt" in
             1)
               change_password "$miusuario"
@@ -180,6 +310,8 @@ select opt in "${opciones[@]}"; do
               ;;
                3)
               ingresar_producto
+              ;;
+              4) vender_productos 
               ;;
             *)
               echo "Opción inválida."
