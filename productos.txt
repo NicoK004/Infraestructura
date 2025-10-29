@@ -1,1 +1,5 @@
 IPH - iphone 10 - modelo - descripcion del product - 0 - $ 1000
+PER - peras - frutas - desc - 1 - $ 50
+MAN - manzanas - frutas - desc - 4 - $ 40
+FRU - frutas - manzanas - desc - 30 - $ 40
+FRU - frutas - peras - desc - 20 - $ 50
