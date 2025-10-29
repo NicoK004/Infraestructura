@@ -10,7 +10,7 @@ touch productos.txt
 # === Utilidades ===
 trim() {
   # Imprime la cadena sin espacios al inicio/fin
-  echo "$1" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//'
+  echo "$1" | sed -e 's/^[[:space:]]//;s/[[:space:]]$//'
 }
 
 user_exists() {
