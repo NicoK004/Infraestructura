@@ -6,6 +6,10 @@
 touch usuarios.txt
 touch registro.txt
 touch productos.txt 
+# Ruta del script y carpeta Datos
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" &>/dev/null && pwd)"
+DATOS_DIR="${SCRIPT_DIR}/Datos"
+
 
 # === Utilidades ===
 trim() {
@@ -263,6 +267,41 @@ filtrar_productos() {
     awk -F' - ' -v t="$tipo" 'BEGIN{IGNORECASE=1} $2 ~ t {print}' productos.txt
   fi
 }
+# === Parte 5: Generar reporte CSV en Datos/datos.CSV ===
+generar_reporte_csv() {
+  if [ ! -s productos.txt ]; then
+    echo "No hay productos cargados. No se genera CSV."
+    return 1
+  fi
+
+  mkdir -p "$DATOS_DIR" || { echo "No se pudo crear la carpeta $DATOS_DIR"; return 1; }
+  local out="${DATOS_DIR}/datos.CSV"
+
+  # Encabezado
+  echo 'Codigo,Tipo,Modelo,Descripcion,Cantidad,Precio' > "$out"
+
+  # Cada línea del archivo productos.txt tiene el formato:
+  # COD - Tipo - Modelo - Descripción - Cantidad - $ Precio
+  # Generamos CSV con comillas y escapado correcto de dobles comillas.
+  awk -F' - ' '
+    function trim(s){ gsub(/^[[:space:]]+|[[:space:]]+$/,"",s); return s }
+    function q(s){ gsub(/"/,"""",s); return "\"" s "\"" }
+    {
+      codigo = trim($1)
+      tipo   = trim($2)
+      modelo = trim($3)
+      desc   = trim($4)
+      cant   = trim($5)
+      precio = $6
+      gsub(/^\$[[:space:]]*/,"",precio)  # quita "$ " al inicio
+      precio = trim(precio)
+
+      print q(codigo) "," q(tipo) "," q(modelo) "," q(desc) "," q(cant) "," q(precio)
+    }
+  ' productos.txt >> "$out"
+
+  echo "Reporte generado: $out"
+}
 
 
 
@@ -318,8 +357,8 @@ select opt in "${opciones[@]}"; do
 
         # === SUBMENÚ DE USUARIO LOGUEADO ===
         while true; do
-          echo -e "2.1) Cambiar contraseña\n2.2) Logout\n2.3) Ingresar producto\n2.4) Vender producto\n2.5) Filtrar productos por tipo "
-          read -p "Elija una opción (1-4): " subopt
+          echo -e "2.1) Cambiar contraseña\n2.2) Logout\n2.3) Ingresar producto\n2.4) Vender producto\n2.5) Filtrar productos por tipo\n2.6) Generar reporte CSV "
+          read -p "Elija una opción (1-6): " subopt
           case "$subopt" in
             1)
               change_password "$miusuario"
@@ -334,6 +373,8 @@ select opt in "${opciones[@]}"; do
               4) vender_productos 
               ;;
               5) filtrar_productos
+               ;;
+               6) generar_reporte_csv 
                ;;
             *)
               echo "Opción inválida."
