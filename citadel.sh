@@ -14,7 +14,7 @@ DATOS_DIR="${SCRIPT_DIR}/Datos"
 # === Utilidades ===
 trim() {
   # Imprime la cadena sin espacios al inicio/fin
-  echo "$1" | sed -e 's/^[[:space:]]//;s/[[:space:]]$//'
+  echo "$1" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//';
 }
 
 user_exists() {
@@ -41,6 +41,31 @@ last_login_of() {
   local u="$1"
   grep -E "^${u}¬" registro.txt | tail -n 1 | awk -F"¬" '{print $2}'
 }
+# auxiliares para parte AgregarProducto
+# === Tipos válidos según la letra (validación y normalización) ===
+es_tipo_valido() {
+  local t="$(echo "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$t" in
+    base|layer|shade|dry|contrast|technical|texture|mediums) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+canon_tipo() {
+  # Devuelve el tipo con capitalización canónica
+  local t="$(echo "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$t" in
+    base) echo "Base" ;;
+    layer) echo "Layer" ;;
+    shade) echo "Shade" ;;
+    dry) echo "Dry" ;;
+    contrast) echo "Contrast" ;;
+    technical) echo "Technical" ;;
+    texture) echo "Texture" ;;
+    mediums) echo "Mediums" ;;
+  esac
+}
+
 
 change_password() {
   local u="$1"
@@ -78,10 +103,14 @@ change_password() {
 ingresar_producto() {
   local tipo modelo desc cantidad precio codigo
 
-  # Tipo
-  read -p "Ingrese el Tipo (nombre completo): " tipo
+  echo "Tipos permitidos: Base, Layer, Shade, Dry, Contrast, Technical, Texture, Mediums"
+  read -p "Ingrese el Tipo (exacto o aproximado, sin tildes): " tipo
   tipo="$(trim "$tipo")"
-  if [ -z "$tipo" ]; then echo "El Tipo no puede ser vacío."; return 1; fi
+  if ! es_tipo_valido "$tipo"; then
+    echo "Tipo inválido. Debe ser uno de: Base, Layer, Shade, Dry, Contrast, Technical, Texture, Mediums."
+    return 1
+  fi
+  tipo="$(canon_tipo "$tipo")"  # normaliza capitalización
 
   # Código = primeras 3 letras del tipo en MAYÚSCULA
   codigo="$(echo "$tipo" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z]//g' | cut -c1-3)"
@@ -116,22 +145,6 @@ ingresar_producto() {
   echo "$linea"
   echo "$linea" >> productos.txt
   echo "Producto registrado en productos.txt"
-}
-# === Listado para vender (numero – tipo – modelo – precio) ===
-mostrar_productos() {
-  if [ ! -s productos.txt ]; then
-    echo "No hay productos cargados."
-    return 1
-  fi
-  echo "Lista de productos:"
-  # n) Tipo - Modelo - $ Precio
-  awk -F' - ' '
-    {
-      price=$6
-      gsub(/^\$[[:space:]]*/,"",price)   # quita "$ " del inicio
-      printf "%d) %s - %s - $ %s\n", NR, $2, $3, price
-    }
-  ' productos.txt
 }
 
 # Helpers para leer/modificar una línea de productos.txt por número
