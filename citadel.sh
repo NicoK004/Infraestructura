@@ -159,9 +159,9 @@ _update_stock_by_num() {
 # === Parte 3: Vender productos (múltiples ítems a la vez) ===
 vender_productos() {
   mostrar_productos || return 1
-  echo
-  echo "Ingrese compras en formato: <numero> <cantidad>"
-  echo "Una por línea. Enter vacío para finalizar (ej.: '1 3' compra 3 unidades del producto 1)."
+  echo ""
+  echo "Ingrese compras en formato: <numeroProducto> <cantidad>"
+  echo "Una por línea. Presione Enter vacío para finalizar la venta (ej.: '1 3' compra 3 unidades del producto 1)."
 
   local carrito_tmp="$(mktemp)"
   while true; do
@@ -173,7 +173,7 @@ vender_productos() {
 
     # validaciones básicas
     if ! [[ "$num" =~ ^[0-9]+$ ]] || ! [[ "$qty" =~ ^[0-9]+$ ]] || [ "$qty" -le 0 ]; then
-      echo "Entrada inválida. Use: <numero> <cantidad> (ambos enteros > 0)."
+      echo "Entrada inválida. Use: <numeroProducto> <cantidad> (ambos enteros > 0)."
       continue
     fi
 
@@ -210,7 +210,7 @@ vender_productos() {
       echo "${num}|${qty}" >> "$carrito_tmp"
     fi
 
-    echo "Agregado: $tipo - $modelo x $qty"
+    echo "Agregado: $tipo - $modelo Cantidad: $qty"
   done
 
   # si no se agregó nada
@@ -298,7 +298,7 @@ select opt in "${opciones[@]}"; do
 
         # === SUBMENÚ DE USUARIO LOGUEADO ===
         while true; do
-          echo -e "2.1) Cambiar contraseña\n2.2) Logout\n2.3 Ingresar producto\n2.4) Vender producto "
+          echo -e "2.1) Cambiar contraseña\n2.2) Logout\n2.3) Ingresar producto\n2.4) Vender producto "
           read -p "Elija una opción (1-4): " subopt
           case "$subopt" in
             1)
