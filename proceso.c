@@ -1,73 +1,97 @@
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
-#include <unistd.h>
 #include <semaphore.h>
+#include <unistd.h>
 #include <time.h>
 
 #define PASAJEROS 100
 #define OFICINISTAS 5
 #define CAMBIOS 3
 
-sem_t mutex;  // semáforo binario para exclusión mutua (RSR)
+sem_t rw_mutex;   // controla acceso al cartel (lectores vs escritores)
+sem_t rc_mutex;   // protege contador de lectores
+int readers = 0;
 
-// Función de los pasajeros
-void *pasajero(void *arg) {
-    int id = (int)(intptr_t)arg;
-    srand(time(NULL) ^ id);
+// --------- Funciones --------------
 
-    while (1) {
-        sem_wait(&mutex); // entrada a región crítica
-        printf("Pasajero %d está mirando el cartel\n", id);
+void* pasajero(void* x) {
+    long id = (long)x;
+    int i;
+    for (i = 0; i < 3; i++) {
+        sem_wait(&rc_mutex);
+        readers++;
+        if (readers == 1)
+            sem_wait(&rw_mutex); // primer lector bloquea a escritores
+        sem_post(&rc_mutex);
+
+        // sección crítica de lectura 
+        printf("Pasajero %ld está mirando el cartel\n", id);
         fflush(stdout);
-        usleep((rand() % 3000 + 1) * 1000); // demora aleatoria hasta 3 seg
-        sem_post(&mutex); // salida de región crítica
+        sleep(rand() % 4); // demora random hasta 3s
 
-        usleep((rand() % 3000 + 1) * 1000); // espera antes de volver a mirar
+        // salida
+        sem_wait(&rc_mutex);
+        readers--;
+        if (readers == 0)
+            sem_post(&rw_mutex); // último lector libera
+        sem_post(&rc_mutex);
+
+        sleep(rand() % 4);
     }
-    return NULL;
+    pthread_exit(NULL);
 }
 
-// Función de los oficinistas
-void *oficinista(void *arg) {
-    int id = (int)(intptr_t)arg;
-    srand(time(NULL) ^ id);
+void* oficinista(void* x) {
+    long id = (long)x;
+    int i;
+    for (i = 0; i < CAMBIOS; i++) {
+        sem_wait(&rw_mutex); // bloqueo total
 
-    for (int i = 0; i < CAMBIOS; i++) {
-        sem_wait(&mutex); // entrada a región crítica
-        printf("Oficinista %d está modificando el cartel (cambio %d)\n", id, i + 1);
+        printf("Oficinista %ld está modificando el cartel\n", id);
         fflush(stdout);
-        usleep((rand() % 5000 + 1) * 1000); // demora aleatoria hasta 5 seg
-        sem_post(&mutex); // salida de región crítica
+        sleep(rand() % 6); // demora random hasta 5s
 
-        usleep((rand() % 2000 + 1) * 1000);
+        sem_post(&rw_mutex);
+
+        sleep(rand() % 6);
     }
-    return NULL;
+    pthread_exit(NULL);
 }
 
 int main() {
-    pthread_t th_pasajeros[PASAJEROS];
-    pthread_t th_oficinistas[OFICINISTAS];
+    srand(time(NULL));
 
-    // Inicializar semáforo binario (1 = libre)
-    sem_init(&mutex, 0, 1);
+    pthread_t pas[PASAJEROS];
+    pthread_t ofi[OFICINISTAS];
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
 
-    // Crear hilos de oficinistas
-    for (int i = 0; i < OFICINISTAS; i++)
-        pthread_create(&th_oficinistas[i], NULL, oficinista, (void*)(intptr_t)(i + 1));
+    sem_init(&rw_mutex, 0, 1);
+    sem_init(&rc_mutex, 0, 1);
 
-    // Crear hilos de pasajeros
-    for (int i = 0; i < PASAJEROS; i++)
-        pthread_create(&th_pasajeros[i], NULL, pasajero, (void*)(intptr_t)(i + 1));
+    // crear oficinistas
+    for (long i = 0; i < OFICINISTAS; i++) {
+        pthread_create(&ofi[i], &attr, oficinista, (void*)i);
+    }
 
-    // Esperar a que los oficinistas terminen sus 3 cambios
-    for (int i = 0; i < OFICINISTAS; i++)
-        pthread_join(th_oficinistas[i], NULL);
+    // crear pasajeros
+    for (long i = 0; i < PASAJEROS; i++) {
+        pthread_create(&pas[i], &attr, pasajero, (void*)i);
+    }
 
-    // Cancelar los pasajeros (lectores infinitos)
-    for (int i = 0; i < PASAJEROS; i++)
-        pthread_cancel(th_pasajeros[i]);
+    // join oficinistas
+    for (int i = 0; i < OFICINISTAS; i++) {
+        pthread_join(ofi[i], NULL);
+    }
 
-    sem_destroy(&mutex);
+    // join pasajeros
+    for (int i = 0; i < PASAJEROS; i++) {
+        pthread_join(pas[i], NULL);
+    }
+
+    sem_destroy(&rw_mutex);
+    sem_destroy(&rc_mutex);
+
     return 0;
 }
