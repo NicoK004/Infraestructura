@@ -1,0 +1,9 @@
+Codigo,Tipo,Modelo,Descripcion,Cantidad,Precio
+"IPH","iphone 10","modelo","descripcion del product","0","1000"
+"PER","peras","frutas","desc","1","50"
+"MAN","manzanas","frutas","desc","4","40"
+"FRU","frutas","manzanas","desc","30","40"
+"FRU","frutas","peras","desc","20","50"
+"BAS","Base","Pintura","desc","10","50"
+"LAY","Layer","Pintura","desc","3","20"
+"BAS","Base","Pintura2","desc","0","40"
